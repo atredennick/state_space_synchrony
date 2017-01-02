@@ -8,17 +8,17 @@ rm(list=ls(all.names = TRUE))
 ####
 ####  LIBRARIES ----
 ####
-library(mvtnorm)
-library(reshape2)
-library(plyr)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(viridis)
-library(ggthemes)
-library(rjags)
-library(coda)
-library(synchrony)
+library(mvtnorm)   # Multivariate normal functions
+library(reshape2)  # Data wrangling
+library(plyr)      # More data wrangling
+library(dplyr)     # Data summarizing
+library(tidyr)     # All the data wrangling functions and piping
+library(ggplot2)   # For plotting
+library(viridis)   # Nice color scheme
+library(ggthemes)  # Nice plotting themes
+library(rjags)     # Just Another GIBBS Sampler
+library(coda)      # Manipulates MCMC output
+library(synchrony) # Calculates community synchrony
 
 
 
@@ -47,13 +47,13 @@ my_theme <- theme_bw()+
 ####
 #### SIMULATE ENVRIONMENTAL DATA ----
 ####
-yrs <- 10
-lat <- c(-11:10)
-lon <- c(-11:10)
+yrs           <- 10
+lat           <- c(-11:10)
+lon           <- c(-11:10)
 saddle_length <- 0.5*length(lat)
-snowdepth <- c(seq(-5,5, length.out = saddle_length),
-               seq(5,-5, length.out = saddle_length))
-environment <- rbeta(n = yrs, shape1 = 1, shape2 = 1)
+snowdepth     <- c(seq(-5,5, length.out = saddle_length),
+                   seq(5,-5, length.out = saddle_length))
+environment   <- rbeta(n = yrs, shape1 = 1, shape2 = 1)
 
 snowgrid_time <- list()
 for(t in 1:yrs){
@@ -66,19 +66,19 @@ for(t in 1:yrs){
 }
 
 ### Grab first year grid for plotting example
-snowgrid_df <- as.data.frame(snowgrid_time[[1]])
-colnames(snowgrid_df) <- lon
-snowgrid_df$lat <- lat
-snowgrid_long <- melt(snowgrid_df, id.vars = "lat")
+snowgrid_df             <- as.data.frame(snowgrid_time[[1]])
+colnames(snowgrid_df)   <- lon
+snowgrid_df$lat         <- lat
+snowgrid_long           <- melt(snowgrid_df, id.vars = "lat")
 colnames(snowgrid_long) <- c("lat", "lon", "snowdepth")
-snowgrid_long$lon <- as.numeric(as.character(snowgrid_long$lon))
+snowgrid_long$lon       <- as.numeric(as.character(snowgrid_long$lon))
 
 ### Set up evenly spaced sample grid
-lon_ids <- seq.int(1L, length(lon), 3L)
-lat_ids <- seq.int(1L, length(lat), 3L)
-sample_lons <- lon[lon_ids]
-sample_lats <- lat[lat_ids]
-sample_grid <- expand.grid(sample_lats, sample_lons)
+lon_ids               <- seq.int(1L, length(lon), 3L)
+lat_ids               <- seq.int(1L, length(lat), 3L)
+sample_lons           <- lon[lon_ids]
+sample_lats           <- lat[lat_ids]
+sample_grid           <- expand.grid(sample_lats, sample_lons)
 colnames(sample_grid) <- c("sample_lat", "sample_lon")
 
 ### Extract snow depth values at each sample location for each year
@@ -104,29 +104,29 @@ ggsave(filename = "snowdepth_grid_example.png", width = 4, height=2.5, units = "
 ####
 ####  GENERATE SPECIES COVER DATA ----
 ####
-spp1_var <- 0.1
-spp2_var <- 0.2
-beta_int <- 0
-beta_dd1 <- 0.8
-beta_dd2 <- 0.8
-beta_mu <- -1.5
+spp1_var    <- 0.1
+spp2_var    <- 0.2
+beta_int    <- 0
+beta_dd1    <- 0.8
+beta_dd2    <- 0.8
+beta_mu     <- -1.5
 beta_spp_mu <- rnorm(2, beta_mu, sd = 0.5)
-sigma <- 1
-rho <- 0
-Sigma <- matrix(data = c(sigma, sigma*rho,
-                         sigma*rho, sigma), 2,2)
-Sigma <- as.matrix(Sigma)
+sigma       <- 1
+rho         <- 0
+Sigma       <- matrix(data = c(sigma, sigma*rho,
+                               sigma*rho, sigma), 2,2)
+Sigma       <- as.matrix(Sigma)
 beta_spp_yrs <- rmvnorm(yrs, mean = beta_spp_mu, sigma = Sigma)
 
 beta_spp_int <- rnorm(2, beta_int, sd=2)
-sigma_int <- 2
-rho_int <- 0.5
-Sigma_int <- matrix(data = c(sigma_int, sigma_int*rho_int,
-                         sigma_int*rho_int, sigma_int), 2,2)
-Sigma_int <- as.matrix(Sigma_int)
+sigma_int    <- 2
+rho_int      <- 0.5
+Sigma_int    <- matrix(data = c(sigma_int, sigma_int*rho_int,
+                                sigma_int*rho_int, sigma_int), 2,2)
+Sigma_int    <- as.matrix(Sigma_int)
 beta_int_yrs <- rmvnorm(yrs, mean = beta_spp_int, sigma = Sigma_int)
 
-mu_spp1 <- mu_spp2 <- list()
+mu_spp1      <- mu_spp2 <- list()
 mu_spp1[[1]] <- rnorm(64, snow_sample[[1]],0.01)
 mu_spp2[[1]] <- rnorm(64, snow_sample[[1]],0.01)
 for(t in 2:yrs){
@@ -150,13 +150,13 @@ for(t in 1:yrs){
 }
 
 ### Melt to make even longer dataframe
-sim_data_long <- melt(sim_data, id.vars = c("year","lat","lon","plot_id","snow_depth"))
-sim_data_long2 <- sim_data_long
-sim_data_long2$year <- sim_data_long2$year+1
+sim_data_long               <- melt(sim_data, id.vars = c("year","lat","lon","plot_id","snow_depth"))
+sim_data_long2              <- sim_data_long
+sim_data_long2$year         <- sim_data_long2$year+1
 colnames(sim_data_long2)[7] <- "lag_value"
-sim_data_long3 <- merge(sim_data_long, sim_data_long2[,c("year", "plot_id", "variable", "lag_value")])
-sim_data_long <- sim_data_long3
-sim_data_long$year <- sim_data_long$year-1
+sim_data_long3              <- merge(sim_data_long, sim_data_long2[,c("year", "plot_id", "variable", "lag_value")])
+sim_data_long               <- sim_data_long3
+sim_data_long$year          <- sim_data_long$year-1
 
 
 ####
@@ -255,11 +255,11 @@ ggsave("post_correlations.png", width = 3, height = 2.5, units="in", dpi=300)
 ####  PLOT POSTERIOR DISTRIBUTIONS OF SNOW EFFECT ----
 ####
 out_variables <- c("beta2")
-mc3     <- jags.model(file=textConnection(my_model), data=mydat, n.chains=1)
+mc3           <- jags.model(file=textConnection(my_model), data=mydat, n.chains=1)
 update(mc3, n.iter = 10000)
-mc3.out <- coda.samples(model=mc3, variable.names=out_variables, n.iter=5000)
+mc3.out       <- coda.samples(model=mc3, variable.names=out_variables, n.iter=5000)
 # plot(mc3.out)
-mfit <- as.data.frame(as.matrix(mc3.out,chains=TRUE))
+mfit          <- as.data.frame(as.matrix(mc3.out,chains=TRUE))
 mfit$iteration <- 1:nrow(mfit)
 
 mfit_long <- melt(mfit, id.vars = c("CHAIN","iteration")) %>%
